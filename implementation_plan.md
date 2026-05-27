@@ -236,7 +236,7 @@ class AttentionNoPositionModel(nn.Module):
     permutation-invariant without positions. In practice, item identity
     serves as a weak positional signal. Worth measuring.
     """
-    def __init__(self, n_items, hidden_dim=64, n_blocks=2, n_heads=1, dropout=0.2):
+    def __init__(self, n_items, hidden_dim=64, n_blocks=2, n_heads=1, dropout=0.5):
         super().__init__()
         self.item_embedding = nn.Embedding(n_items + 1, hidden_dim, padding_idx=0)
         # NOTE: NO pos_embedding here
@@ -306,7 +306,9 @@ Hit@10 (sampled) somewhere between Stage 1 and Stage 3. The interesting question
 
 ## Stage 3: Full SASRec (Causal Attention + Positional Embeddings)
 
-**Hypothesis:** Adding positional embeddings unlocks the full power of self-attention by letting the model distinguish positions in the sequence. This is the actual SASRec model.
+**Hypothesis:** Adding positional embeddings lets the model distinguish positions in the sequence. This is the actual SASRec model.
+
+> **Set expectations: the Stage 2→3 delta will be small on Games.** The paper's own ablation (Table IV, "Remove PE") shows NDCG@10 on Amazon Games moving only 0.5360 → 0.5301 — about a 1% relative drop. So PE is *not* a big unlock on this dataset; the honest finding is likely "positional embeddings barely move Games." That is still a legitimate, reportable result — don't treat a ~1% delta as a bug, and don't oversell PE in the write-up.
 
 ### `src/models/stage3_sasrec.py`
 
@@ -320,7 +322,7 @@ class SASRec(nn.Module):
     - Item embedding tied (same embedding used as input AND for scoring)
     """
     def __init__(self, n_items, hidden_dim=64, n_blocks=2, n_heads=1, 
-                 max_seq_len=50, dropout=0.2):
+                 max_seq_len=50, dropout=0.5):
         super().__init__()
         self.item_embedding = nn.Embedding(n_items + 1, hidden_dim, padding_idx=0)
         self.pos_embedding = nn.Embedding(max_seq_len, hidden_dim)  # NEW vs Stage 2
@@ -363,7 +365,7 @@ Hit@10 (sampled) around 0.65-0.75 based on published SASRec results. This is the
 | `n_blocks` | 2 | More rarely helps on this scale |
 | `n_heads` | 1 | Paper uses 1 head |
 | `max_seq_len` | 50 | Standard |
-| `dropout` | 0.2 | Standard |
+| `dropout` | 0.5 | Paper uses 0.5 for sparse datasets (Beauty/Games/Steam); 0.2 is the ML-1M value. Using 0.2 on Games will overfit and likely undershoot the published number. |
 
 ---
 
@@ -415,32 +417,22 @@ def train(model, train_loader, val_loader, config):
         betas=(0.9, 0.98),
     )
     
-    n_items = config['n_items']
-    n_random_neg = config['n_random_neg']
-    
     best_val_ndcg = 0
     
     for epoch in range(config['n_epochs']):
         model.train()
         for input_seq, pos_seq, neg_seq in train_loader:
+            # SASRec §III-E: exactly ONE negative per timestep, resampled each
+            # epoch (neg_seq, produced fresh by the dataset). Do NOT add the 100
+            # eval negatives here — 100 is the evaluation protocol only. Mixing
+            # them into training deviates from the paper and hurts comparability.
             seq_out = model(input_seq)  # (B, L, D)
             
             pos_emb = model.item_embedding(pos_seq)
             neg_emb = model.item_embedding(neg_seq)
             
-            # Additional random negatives, fresh per batch
-            random_negs = torch.randint(
-                1, n_items + 1,
-                (input_seq.size(0), input_seq.size(1), n_random_neg),
-                device=input_seq.device,
-            )
-            random_neg_emb = model.item_embedding(random_negs)
-            
             pos_logits = (seq_out * pos_emb).sum(dim=-1)
             neg_logits = (seq_out * neg_emb).sum(dim=-1)
-            random_neg_logits = torch.einsum(
-                'bld,blkd->blk', seq_out, random_neg_emb
-            )
             
             # Mask: only compute loss on real positions
             mask = (pos_seq != 0).float()
@@ -451,11 +443,8 @@ def train(model, train_loader, val_loader, config):
             neg_loss = F.binary_cross_entropy_with_logits(
                 neg_logits, torch.zeros_like(neg_logits), reduction='none'
             )
-            random_neg_loss = F.binary_cross_entropy_with_logits(
-                random_neg_logits, torch.zeros_like(random_neg_logits), reduction='none'
-            ).mean(dim=-1)
             
-            loss = ((pos_loss + neg_loss + random_neg_loss) * mask).sum() / mask.sum()
+            loss = ((pos_loss + neg_loss) * mask).sum() / mask.sum()
             
             optimizer.zero_grad()
             loss.backward()
@@ -480,7 +469,8 @@ def train(model, train_loader, val_loader, config):
 | `lr` | 1e-3 |
 | `batch_size` | 128 |
 | `n_epochs` | 200 with early stopping |
-| `n_random_neg` | 100 |
+| training negatives | 1 per position | resampled each epoch (per paper) |
+| `n_eval_neg` | 100 | **eval only** — sampled-metric protocol, not training |
 | `val_every` | 5 epochs |
 
 Keep these identical across stages for fair comparison.
@@ -574,11 +564,13 @@ This table is the centerpiece of your portfolio narrative.
 
 | Source | Hit@10 (sampled) | NDCG@10 (sampled) |
 |--------|------------------|-------------------|
-| SASRec paper (Kang & McAuley 2018) | 0.737 | 0.523 |
-| BERT4Rec paper (Sun et al. 2019) | 0.748 | 0.527 |
+| SASRec paper (Kang & McAuley 2018), Table III, Amazon Games | 0.7410 | 0.5360 |
+| BERT4Rec paper (Sun et al. 2019), Amazon Games | — | — |
 | This implementation, Stage 3 | ? | ? |
 
-Target: within 5-10% of published.
+Target: within 5-10% of published (NDCG@10 ≈ 0.48–0.54).
+
+> ⚠️ **Verify before filling the BERT4Rec row.** The original BERT4Rec paper evaluated on Beauty, Steam, ML-1m, and ML-20m — **not Amazon Video Games**. Do not cite a Games number for BERT4Rec unless you find a source that actually reports one; otherwise leave it blank or drop the row.
 ```
 
 ---
@@ -637,14 +629,14 @@ and evaluated for ablation comparison.
 - Leave-one-out evaluation
 
 ## Architecture Defaults (Stages 1-3)
-- hidden_dim=64, n_blocks=2, n_heads=1, max_seq_len=50, dropout=0.2
+- hidden_dim=64, n_blocks=2, n_heads=1, max_seq_len=50, dropout=0.5
 - Item embedding tied between input and output
 - Pre-norm transformer convention (LN before attn/ff)
 - Causal attention mask in Stages 2, 3 (REQUIRED for autoregressive training,
   not a feature being ablated)
 
 ## Training (Same Across Stages 1-3)
-- BCE with logits + sampled negatives (100 random per position per batch)
+- BCE with logits + ONE sampled negative per position, resampled each epoch (100 negatives is eval-only)
 - Adam optimizer, lr=1e-3, beta=(0.9, 0.98)
 - Gradient clipping max_norm=1.0
 - Early stop on val NDCG@10 plateau (20 epochs patience)
@@ -692,7 +684,7 @@ Do not move to stage N+1 until stage N is verified working.
 6. **Compare Stage 1 vs 2**: Quantify what attention alone contributes
 7. **Stage 3**: Full SASRec, train to convergence, record metrics
 8. **Compare Stage 2 vs 3**: Quantify what positional embeddings contribute
-9. **Verify Stage 3**: Sampled NDCG@10 within 5-10% of published (~0.45-0.50)
+9. **Verify Stage 3**: Sampled NDCG@10 within 5-10% of published Games number (0.5360 → target ~0.48-0.54)
 10. **Stage 4 (optional)**: BERT4Rec implementation
 11. **Ablation write-up**: Complete ablation table with findings
 12. **Streamlit app** with stage comparison tab
@@ -709,6 +701,8 @@ Do not move to stage N+1 until stage N is verified working AND its metrics are r
 
 2. **Padding must not contribute.** Use `padding_idx=0` in `nn.Embedding`. Use `key_padding_mask` in attention. Mask padding in loss computation.
 
+   **NaN trap:** with left-padding + causal mask + `key_padding_mask`, a padding *query* position (e.g. position 0 when it is pad) has every key masked → softmax over all `-inf` → `NaN` out of `nn.MultiheadAttention`. Even though that position is masked in the loss, `NaN * 0 = NaN`, so `(loss * mask).sum()` becomes NaN and training dies on the first batch. Fix: zero the model output at padding positions before the loss (`seq_out = seq_out * (input_seq != 0).unsqueeze(-1)`), or guarantee every query attends to ≥1 valid key. Verify the loss is finite on batch 0.
+
 3. **Item indices are 1-indexed.** Idx 0 is padding. All real items go from 1 to n_items.
 
 4. **Resample negatives every batch.** Do not precompute.
@@ -721,7 +715,7 @@ Do not move to stage N+1 until stage N is verified working AND its metrics are r
 
 8. **Do not skip ablation stages.** The progressive build IS the portfolio value. If you skip straight to Stage 3, the project is just "I implemented SASRec" rather than "I built up sequential recommendation from first principles and measured each component's contribution."
 
-9. **Keep hyperparameters identical across Stages 1-3.** Same lr, same batch size, same n_epochs, same n_random_neg. Only the model architecture varies. This is what makes the comparison fair.
+9. **Keep hyperparameters identical across Stages 1-3.** Same lr, same batch size, same n_epochs, same 1-negative training scheme. Only the model architecture varies. This is what makes the comparison fair.
 
 10. **All four metrics in the ablation table matter.** Hit@10 and NDCG@10 each, both sampled and full. Don't drop columns to make the table cleaner.
 

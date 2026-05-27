@@ -95,12 +95,13 @@ Progressive, ablation-driven implementation of sequential recommendation on the 
 - **Item embedding is tied**: the same embedding table is used for both input and candidate scoring (the training/eval loops call `model.item_embedding(...)` directly), so every stage's model must expose an `item_embedding` attribute and `forward` must return per-position output of shape `(B, L, D)`.
 - **Negatives are resampled fresh every batch**, never precomputed.
 - **Timestamp ties break deterministically by `asin`** during preprocessing.
+- **Train on the full item corpus** — consoles, accessories, guides, etc. are kept, NOT filtered to games-only. Published SASRec numbers are computed on the full 5-core category, so filtering would break benchmark comparability and the 5-core guarantee. Non-game items may *optionally* be hidden from displayed recommendations at demo time (a cosmetic serve-time filter); never filter them out of training or scoring.
 
 ## Shared training/eval (identical across Stages 1–3 for fair comparison)
 
-- Loss: BCE-with-logits over positive + sampled negatives (`n_random_neg=100` per position).
+- Loss: BCE-with-logits over positive + **one** sampled negative per position (per SASRec §III-E). The 100 negatives are the *eval* protocol, not training — see the plan.
 - Adam, `lr=1e-3`, betas `(0.9, 0.98)`, grad clip `max_norm=1.0`.
-- Defaults: `hidden_dim=64`, `n_blocks=2`, `n_heads=1`, `max_seq_len=50`, `dropout=0.2`, `batch_size=128`. Pre-norm transformer blocks.
+- Defaults: `hidden_dim=64`, `n_blocks=2`, `n_heads=1`, `max_seq_len=50`, `dropout=0.5`, `batch_size=128`. Pre-norm transformer blocks. (Paper uses dropout 0.5 for sparse datasets incl. Amazon Games; 0.2 is the ML-1M setting.)
 - Leave-one-out split: train on `[i_1..i_{T-2}]`, validate on `i_{T-1}`, test on `i_T`.
 - Report **both** sampled (100 negatives) and full-corpus metrics for Hit@10 and NDCG@10. Primary selection metric is sampled NDCG@10.
 
@@ -109,7 +110,7 @@ Keep these constant across stages; only the model architecture varies.
 ## Sanity checks
 
 - Stage 1 sampled NDCG@10 must exceed 0.10, or the baseline is broken — debug before continuing.
-- Stage 3 sampled metrics should land within ~5–10% of published SASRec (Hit@10 ≈ 0.737, NDCG@10 ≈ 0.523). Aim for comparable, not superior.
+- Stage 3 sampled metrics should land within ~5–10% of published SASRec on Amazon Games (Table III: Hit@10 = 0.7410, NDCG@10 = 0.5360). Aim for comparable, not superior.
 
 ## Out of scope
 
