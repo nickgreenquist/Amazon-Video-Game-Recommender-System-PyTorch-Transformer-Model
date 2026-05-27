@@ -114,3 +114,13 @@ Keep these constant across stages; only the model architecture varies.
 ## Out of scope
 
 No integration with other recommender repos, no ranker/cross-encoder/DIN architectures, no text/multi-task extensions, no skipping ablation stages.
+
+## Sources
+
+- Amazon Review Data (2018), McAuley UCSD — dataset: https://nijianmo.github.io/amazon/
+- UCSD Amazon Product Dataset 2018 walkthrough: https://medium.com/@kumari01priyanka/ucsd-amazon-product-dataset-2018-e7613d5145b0
+- Amazon v2 dataset files (per-category downloads): https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2/
+
+The Video Games category raw files should contain: **reviews** (2,565,349 reviews) and **metadata** (84,893 products). Use these counts to sanity-check the raw download before preprocessing. (These are the full-category totals; the 5-core subset used for training is smaller.)
+
+**Why train on the 5-core reviews (~497k), not the full 2.5M reviews/ratings:** the 5-core subset is what every published SASRec/BERT4Rec baseline reports on, so it keeps our metrics comparable. It also guarantees every user/item has ≥5 interactions, which a sequential ID model needs — the extra ~2M interactions are mostly cold-start tail (1–2 interaction users/items) that can't form usable sequences and just add vocabulary noise. The full files stay useful for metadata/titles/images and any later embedding-pretraining or content-feature work.

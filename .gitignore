@@ -1,0 +1,25 @@
+# Data (raw downloads + processed artifacts) — too large to version
+data/
+
+# Model checkpoints / weights
+saved_models/
+*.pth
+*.pt
+
+# Serving artifacts (regenerated from training)
+streamlit/serving/
+
+# Reference papers (kept locally, not versioned)
+references/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
