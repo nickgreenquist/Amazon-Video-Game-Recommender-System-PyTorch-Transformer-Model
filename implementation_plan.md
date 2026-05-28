@@ -1,4 +1,4 @@
-# SASRec on Amazon Video Games: Progressive Implementation Plan
+# Building SASRec from First Principles: An Ablation-Driven Sequential Recommender on Amazon Video Games
 
 ## Goal
 
