@@ -96,10 +96,8 @@ def run(raw_path, out_dir):
     # 1. Load JSON (each line is one review record)
     #    Fields used: reviewerID, asin, unixReviewTime
     
-    # 2. Apply 5-core filter iteratively until stable:
-    #    Drop users with < 5 interactions
-    #    Drop items with < 5 interactions
-    #    Repeat (usually 2-3 iterations)
+    # 2. (No k-core filtering — Video_Games_5.json.gz is already 5-cored
+    #    upstream by McAuley. Load as-is; do not re-run iterative filtering.)
     
     # 3. Sort each user's interactions by unixReviewTime
     
