@@ -1,26 +1,27 @@
-"""Build a clean, deduped item-metadata table for the games in our 5-core dataset.
+"""Build the clean, classified item-metadata table for the 5-core Video Games corpus.
 
-Reads the raw Amazon metadata, keeps only asins that appear in the 5-core
-reviews, dedupes (keeping the most complete record per asin), and normalizes the
+Counts interactions from the 5-core reviews, joins to the metadata file, cleans
 messy fields (brand 'by\\n' prefixes, HTML-wrapped prices, list-valued rank,
-HTML entities) into clean typed columns. Writes a parquet that downstream code
-(dataset prep, Streamlit demo) can load without re-cleaning.
+HTML entities), classifies each item as game/console/accessory/other/unknown
+via category-segment + title-keyword rules, and writes data/item_metadata.parquet
+for downstream training and demo use.
+
+Inspect with scripts/inspect_items.py.
 """
 
-import csv
 import gzip
 import html
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 
 DATA = Path(__file__).resolve().parents[1] / "data"
+REVIEWS = DATA / "raw" / "Video_Games_5.json.gz"
 META = DATA / "raw" / "meta_Video_Games.json.gz"
-COUNTS = DATA / "games_by_interaction_count.csv"
 OUT = DATA / "item_metadata.parquet"
-OUT_CSV = DATA / "games_by_interaction_count.csv"
 
 # Platforms we can pull out of the category path, longest-match first.
 PLATFORMS = [
@@ -32,24 +33,6 @@ PLATFORMS = [
 
 PRICE_RE = re.compile(r"\$\s*([\d,]+\.\d{2})")
 RANK_RE = re.compile(r"#([\d,]+)")
-
-
-def load_our_asins():
-    with open(COUNTS) as f:
-        return {r["asin"]: int(r["interaction_count"]) for r in csv.DictReader(f)}
-
-
-def completeness(rec):
-    return sum(1 for v in rec.values() if v not in (None, "", [], {}))
-
-
-def clean_brand(raw):
-    if not raw:
-        return ""
-    b = html.unescape(str(raw)).replace("\n", " ").strip()
-    b = re.sub(r"^by\s+", "", b, flags=re.IGNORECASE).strip()
-    return re.sub(r"\s+", " ", b)
-
 
 ACCESSORY_SEGS = {
     "Accessories", "Controllers", "Headsets", "Gaming Mice", "Gaming Keyboards",
@@ -74,6 +57,38 @@ ACCESSORY_TITLE_KW = (
     "remote",
 )
 CONSOLE_TITLE_KW = ("console", "system")
+
+
+def count_interactions():
+    counts = Counter()
+    with gzip.open(REVIEWS, "rt") as f:
+        for line in f:
+            counts[json.loads(line)["asin"]] += 1
+    return counts
+
+
+def load_best_metadata(asins):
+    """Stream the metadata file, keep the most complete record per asin in our set."""
+    best = {}
+    with gzip.open(META, "rt") as f:
+        for line in f:
+            rec = json.loads(line)
+            a = rec.get("asin")
+            if a in asins and completeness(rec) > completeness(best.get(a, {})):
+                best[a] = rec
+    return best
+
+
+def completeness(rec):
+    return sum(1 for v in rec.values() if v not in (None, "", [], {}))
+
+
+def clean_brand(raw):
+    if not raw:
+        return ""
+    b = html.unescape(str(raw)).replace("\n", " ").strip()
+    b = re.sub(r"^by\s+", "", b, flags=re.IGNORECASE).strip()
+    return re.sub(r"\s+", " ", b)
 
 
 def clean_category(raw):
@@ -145,14 +160,8 @@ def pick_image(rec):
 
 
 def main():
-    counts = load_our_asins()
-    best = {}  # asin -> most complete raw record
-    with gzip.open(META, "rt") as f:
-        for line in f:
-            rec = json.loads(line)
-            a = rec.get("asin")
-            if a in counts and completeness(rec) > completeness(best.get(a, {})):
-                best[a] = rec
+    counts = count_interactions()
+    best = load_best_metadata(set(counts))
 
     rows = []
     for a, rec in best.items():
@@ -175,32 +184,16 @@ def main():
         })
 
     df = pd.DataFrame(rows).sort_values("interaction_count", ascending=False)
-    # Games present in reviews but missing from metadata entirely.
-    missing = sorted(set(counts) - set(best))
-
     df.to_parquet(OUT, index=False)
 
-    # Regenerate the lightweight CSV from the same data, but keep ALL asins —
-    # the 19 with no metadata record get kind=unknown and a blank title.
-    csv_df = df[["asin", "interaction_count", "kind", "platform", "title"]]
-    extra = pd.DataFrame(
-        [{"asin": a, "interaction_count": counts[a], "kind": "unknown",
-          "platform": "", "title": ""} for a in missing])
-    csv_df = (pd.concat([csv_df, extra], ignore_index=True)
-              .sort_values("interaction_count", ascending=False))
-    csv_df.to_csv(OUT_CSV, index=False)
-
-    print(f"{len(df)} games written to {OUT}")
-    print(f"{len(csv_df)} rows written to {OUT_CSV}")
-    print(f"  {len(counts) - len(best)} of our games have no metadata record")
+    print(f"{len(df)} items written to {OUT}")
+    print(f"  {len(counts) - len(best)} of {len(counts)} items have no metadata record")
     cov = {c: f"{100 * df[c].astype(bool).mean():.1f}%" for c in
            ["title", "brand", "platform", "category", "description", "image"]}
     cov["price"] = f"{100 * df['price'].notna().mean():.1f}%"
     cov["sales_rank"] = f"{100 * df['sales_rank'].notna().mean():.1f}%"
     print("  coverage:", cov)
     print("  kind:", df["kind"].value_counts().to_dict())
-    if missing:
-        print("  first missing asins:", missing[:5])
 
 
 if __name__ == "__main__":
