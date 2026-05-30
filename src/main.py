@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from dataset import SeqRecDataset, eval_collate, load_user_sequences
 from models.stage1_bag_of_items import BagOfItemsModel
 from models.stage2_attention_no_pos import AttentionNoPositionModel
+from models.stage3_sasrec import SASRec
 from train import train
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +35,9 @@ def build_model(stage, n_items):
     if stage == 2:
         return AttentionNoPositionModel(n_items, hidden_dim=64, n_blocks=2,
                                         n_heads=1, dropout=0.5)
+    if stage == 3:
+        return SASRec(n_items, hidden_dim=64, n_blocks=2, n_heads=1,
+                      max_seq_len=50, dropout=0.5)
     raise NotImplementedError(f"stage {stage} not implemented yet")
 
 
@@ -70,7 +74,7 @@ def main():
         "lr": 1e-3,
         "n_epochs": args.epochs,
         "val_every": 5,
-        "patience": 4,                  # 4 val checks * 5 epochs = 20 epochs plateau
+        "patience": 10,                 # 10 val checks * 5 epochs = 50 epochs plateau
         "device": device,
         "n_items": n_items,
         "checkpoint_path": ckpt_dir / f"stage{args.stage}_best.pth",

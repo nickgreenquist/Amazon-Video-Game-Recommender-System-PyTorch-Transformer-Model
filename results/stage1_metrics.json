@@ -2,12 +2,12 @@
   "stage": 1,
   "model": "BagOfItemsModel",
   "n_params": 1080512,
-  "best_val_ndcg10_sampled": 0.24107961356639862,
-  "best_epoch": 200,
+  "best_val_ndcg10_sampled": 0.3154456913471222,
+  "best_epoch": 500,
   "test": {
-    "hit10_sampled": 0.39353296160697937,
-    "ndcg10_sampled": 0.22302792966365814,
-    "hit10_full": 0.007782562170177698,
-    "ndcg10_full": 0.003698091022670269
+    "hit10_sampled": 0.4828546643257141,
+    "ndcg10_sampled": 0.2896295487880707,
+    "hit10_full": 0.016355233266949654,
+    "ndcg10_full": 0.007803093641996384
   }
 }

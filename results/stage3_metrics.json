@@ -1,0 +1,13 @@
+{
+  "stage": 3,
+  "model": "SASRec",
+  "n_params": 1134272,
+  "best_val_ndcg10_sampled": 0.5523854494094849,
+  "best_epoch": 495,
+  "test": {
+    "hit10_sampled": 0.7472444772720337,
+    "ndcg10_sampled": 0.5188040137290955,
+    "hit10_full": 0.07482321560382843,
+    "ndcg10_full": 0.03873496130108833
+  }
+}
