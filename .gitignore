@@ -23,3 +23,6 @@ env/
 
 # OS / editor
 .DS_Store
+
+# Claude Code session state
+.claude/

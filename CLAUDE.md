@@ -107,6 +107,15 @@ Progressive, ablation-driven implementation of sequential recommendation on the 
 
 Keep these constant across stages; only the model architecture varies.
 
+### Known limitation: temporal skew in leave-one-out
+
+Per-user leave-one-out holds out each user's last two interactions, so val/test targets are by construction the *most recent* items for that user. Two skews fall out of this:
+
+1. **Within-user:** a user's val/test targets are later in their personal timeline than anything in their own training prefix, so they slightly over-represent whatever the user drifted toward (often newer releases).
+2. **Cross-corpus:** items released near the dataset's review cutoff (Amazon 2018 dump runs through Oct 2018) almost always appear as someone's *last* item rather than mid-sequence — so the held-out target distribution skews toward recent releases, while the training-context item distribution skews toward older catalog items.
+
+We accept this skew because every published SASRec/BERT4Rec baseline uses this protocol — switching to a global temporal cut would break direct comparability and kill the headline narrative. The sampled-vs-full NDCG@10 gap partially exposes the bias (sampled hides it via random negatives, full does not), which is one reason both are reported. **Do not deviate from per-user leave-one-out until Stage 3 has a strong, comparable-to-published baseline.** Any future deviation (global temporal split, recency-aware sampling, etc.) is a deliberate experiment on top of that baseline, not a substitute for it.
+
 ## Sanity checks
 
 - Stage 1 sampled NDCG@10 must exceed 0.10, or the baseline is broken — debug before continuing.

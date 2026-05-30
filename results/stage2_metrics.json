@@ -1,0 +1,13 @@
+{
+  "stage": 2,
+  "model": "AttentionNoPositionModel",
+  "n_params": 1131072,
+  "best_val_ndcg10_sampled": 0.516508936882019,
+  "best_epoch": 200,
+  "test": {
+    "hit10_sampled": 0.7043613791465759,
+    "ndcg10_sampled": 0.47562363743782043,
+    "hit10_full": 0.05963338911533356,
+    "ndcg10_full": 0.030070360749959946
+  }
+}

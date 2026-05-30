@@ -96,14 +96,18 @@ def run(raw_path, out_dir):
     # 1. Load JSON (each line is one review record)
     #    Fields used: reviewerID, asin, unixReviewTime
     
-    # 2. (No k-core filtering — Video_Games_5.json.gz is already 5-cored
-    #    upstream by McAuley. Load as-is; do not re-run iterative filtering.)
+    # 2. Dedup (reviewerID, asin) pairs, keeping the earliest timestamp.
+    #    McAuley's _5 file is 5-cored on raw row count; ~24k rows are repeat
+    #    reviews of the same item by the same user. Collapsing them produces
+    #    one interaction per (user, item) and slightly breaks the 5-core
+    #    guarantee (~4.3k users / ~200 items end up with <5).
     
-    # 3. Sort each user's interactions by unixReviewTime
+    # 3. Re-apply iterative 5-core to restore the invariant every later
+    #    stage assumes. Converges in ~4 iterations. This matches published
+    #    SASRec/BERT4Rec preprocessing on Amazon, so metrics stay comparable.
     
-    # 4. Handle timestamp collisions deterministically:
-    #    When user has multiple reviews at same timestamp,
-    #    sort secondarily by asin for reproducibility
+    # 4. Sort each user's interactions by unixReviewTime, with asin as the
+    #    deterministic secondary key for timestamp ties.
     
     # 5. Build user_id_to_idx and item_id_to_idx mappings
     #    Item indices are 1-indexed (0 reserved for padding)
@@ -119,11 +123,13 @@ def run(raw_path, out_dir):
 ```
 
 ### Expected stats (sanity check)
-- ~50-80k users
-- ~15-20k items
-- ~500k-1M interactions
-- Avg sequence length: 10-15 items
-- Max sequence length: 100-500 items
+After dedup + iterative 5-core on the 2018 Video_Games_5 file:
+- 50,626 users
+- 16,882 items (indices 1..16882; idx 0 = padding)
+- 453,881 interactions
+- Avg sequence length: ~9 (matches the SASRec paper's reported 8.88 avg
+  actions/user on the 2014 Amazon Games dump — same preprocessing semantics)
+- Max sequence length: ~770
 
 ---
 
