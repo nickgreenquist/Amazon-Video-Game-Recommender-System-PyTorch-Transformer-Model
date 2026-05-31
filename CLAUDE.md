@@ -71,11 +71,29 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Status: Pre-implementation
+## Status: Stages 0–3 complete; Streamlit app not started
 
-The repo currently contains only `implementation_plan.md`, this file, and `LICENSE`. **No code exists yet.** `implementation_plan.md` is the authoritative spec — read it before writing any code. Build in the strict order it defines (preprocess → dataset → Stage 1 → 2 → 3 → optional 4 → ablation → Streamlit), and do not advance to stage N+1 until stage N is trained, verified, and its metrics recorded.
+`implementation_plan.md` is the authoritative spec — read it before extending the project. Build in the strict order it defines and do not advance to stage N+1 until stage N is trained, verified, and its metrics recorded.
 
-There is no `requirements.txt`, test suite, or build tooling yet. When you create the first ones, document the actual commands here (entry point is planned as `python src/main.py --stage <N>`).
+Done: preprocessing, dataset, Stages 1–3 (trained to 500 epochs, verified), the ablation write-up, the README, and the canary diagnostic tooling.
+Stage 3 hits the target: sampled NDCG@10 = 0.5188 (within 3.2% of published 0.5360).
+Not started: Stage 4 (BERT4Rec, optional), the Streamlit app, deployment.
+
+### Commands
+
+```bash
+pip install -r requirements.txt
+python src/preprocess.py                  # raw → data/processed/ (verify: 50,626 users · 16,882 items · 453,881 interactions)
+python src/main.py --stage <N>            # train+eval Stage N (N∈{1,2,3}); writes results/stage<N>_metrics.json + saved_models/stage<N>_best.pth
+python src/canaries.py [--list|--only X]  # run hand-built persona histories through Stage 3, print top-20 recs
+python src/canary_experiments.py [--only fighting|horror|racing]  # genre-hit sweep over alternate histories
+```
+
+There is no automated test suite; verification is the per-stage metrics + the canary sanity checks.
+
+### Canary personas (`src/canaries.py`)
+
+Hand-built synthetic users for eyeballing recommendation quality before the Streamlit demo. Two groups: **SHOWCASE** (dense, coherent genres — Vintage PS2/PC, Western RPG, PC strategy, Nintendo, Sony handheld — recommend cleanly, ~15–20/20 on-genre) and **DIAGNOSTIC** (sparse genres — horror/fighting/racing — collapse to platform popularity; best ~2/5 top-5). The DIAGNOSTIC three are kept for analysis but **must not be featured in the deployed Streamlit demo** (`canary_experiments.py` documents the 18-history sweep proving the ceiling). Persona games are picked from higher-interaction items (counts in code comments) so embeddings are well-trained; recs are shown raw (no games-only filter) — a cosmetic games-only display filter is a serve-time option for the demo, never for training/scoring.
 
 ## Goal
 
