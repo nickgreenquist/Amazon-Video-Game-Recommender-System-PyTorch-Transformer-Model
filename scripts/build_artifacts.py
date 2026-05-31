@@ -32,7 +32,10 @@ SERVING = ROOT / "serving"
 OUT_META = SERVING / "item_metadata.parquet"
 OUT_CKPT = SERVING / "stage3_best.pth"
 
-COLS = ["idx", "title", "platform", "kind", "image"]
+# 6 cols (§5): the 5 display cols + interaction_count, which orders the demo
+# pickers by popularity. interaction_count is carried straight from the rich
+# source (raw _5-review count) — NOT re-derived from interactions.parquet.
+COLS = ["idx", "title", "platform", "kind", "image", "interaction_count"]
 
 
 def main():
@@ -57,12 +60,13 @@ def main():
     missing = [i for i in asin2idx.values() if i not in have]
     placeholders = pd.DataFrame([
         {"idx": i, "title": "(no metadata)", "platform": "",
-         "kind": "unknown", "image": ""}
+         "kind": "unknown", "image": "", "interaction_count": 0}
         for i in missing
     ])
 
-    # 4. Slim to exactly 5 cols, append placeholders, sort by idx.
+    # 4. Slim to the 6 serving cols, append placeholders, sort by idx.
     slim = pd.concat([df[COLS], placeholders], ignore_index=True)
+    slim["interaction_count"] = slim["interaction_count"].astype(int)
     slim = slim.sort_values("idx").reset_index(drop=True)
 
     # 5. Write idx-keyed parquet.

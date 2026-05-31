@@ -29,70 +29,127 @@ SIMILAR_CAVEAT = (
     "contexts\" — dominated by platform, then genre. It is not a content model."
 )
 
-# ── cover-art + card rendering (Steam _cover_div pattern: a background-image div,
-#    not <img> — a missing/empty URL degrades to a clean panel, never a broken
-#    icon, and it sidesteps Streamlit's markdown margin:auto on images). ──────────
+# ── cover-art + card rendering ─────────────────────────────────────────────────
+# Covers render as a background-image div (not <img>): a missing/empty URL degrades
+# to a clean panel instead of a broken-image icon, and it sidesteps Streamlit's
+# markdown margin:auto-on-images rule. The full-width grids use st.columns; the
+# order-sensitivity comparison uses a CSS grid (cover → title → platform per card),
+# mirroring the Steam app's ranker side-by-side so the two layouts read the same.
+
+COVER_COLS = 5          # cards per row in the full-width grids
 
 _STYLE = """
 <style>
-.cards { display:flex; flex-wrap:wrap; gap:14px; }
-.card { width:132px; }
-.card .cover {
-    width:100%; aspect-ratio:1/1; border-radius:6px;
-    background-color:#2b2b3a; background-position:center;
-    background-size:contain; background-repeat:no-repeat;
-}
-.card .cap {
-    font-size:.78rem; line-height:1.2; margin-top:5px;
-    overflow-wrap:anywhere; word-break:break-word;
-}
-.card .cap .rank { opacity:.5; font-weight:700; margin-right:4px; }
-.card .plat { font-size:.7rem; opacity:.6; margin-top:2px; }
-.card .score { font-size:.7rem; opacity:.75; margin-top:2px; font-variant-numeric:tabular-nums; }
-.order-list { font-size:.82rem; line-height:1.5; }
-.order-list .n { opacity:.5; font-weight:700; margin-right:4px; }
+.main .block-container { overflow-x:hidden; max-width:100%; }
+div[data-testid="stCaptionContainer"] p { word-break:break-word; white-space:normal; }
 div[data-testid="stTabs"] > div:first-child { overflow-x:auto; white-space:nowrap; flex-wrap:nowrap; }
 </style>
 """
 
 
-def _card_html(rank, idx, meta, score=None):
-    row = meta.loc[idx]
-    cover = (f"<div class='cover' style='background-image:url(\"{html.escape(str(row.image))}\")'></div>")
-    rank_el = f"<span class='rank'>{rank}</span>" if rank is not None else ""
-    title = html.escape(str(row.title))
-    plat = f"<div class='plat'>{html.escape(str(row.platform))}</div>" if row.platform else ""
-    score_el = f"<div class='score'>cos {score:.3f}</div>" if score is not None else ""
-    return (f"<div class='card'>{cover}"
-            f"<div class='cap'>{rank_el}{title}</div>{plat}{score_el}</div>")
-
-
-def render_cards(idxs, meta, scores=None, start=1):
-    """Responsive flex-wrap grid of cover cards. One st.html call (st.markdown
-    would run the dense HTML through a sanitizer that mangles it)."""
-    cards = [
-        _card_html(start + n, idx, meta, None if scores is None else scores[n])
-        for n, idx in enumerate(idxs)
-    ]
-    st.html(f"<div class='cards'>{''.join(cards)}</div>")
-
-
-def order_html(ids, meta):
-    items = "  ".join(
-        f"<span class='n'>{n}</span>{html.escape(str(meta.loc[i].title))}"
-        for n, i in enumerate(ids, 1)
+def _cover_div(url):
+    safe = html.escape(str(url)) if url else ""
+    return (
+        "<div style='width:100%;aspect-ratio:1/1;border-radius:6px;"
+        "background-color:#2b2b3a;background-position:center;background-size:contain;"
+        f"background-repeat:no-repeat;background-image:url(\"{safe}\")'></div>"
     )
-    return f"<div class='order-list'>{items}</div>"
+
+
+def _title_div(title):
+    """Title rendered the way the Steam app renders its result titles — wrapping,
+    breaking on long tokens, with a small top margin under the cover."""
+    safe = html.escape(str(title))
+    return (f"<div style='font-size:.8rem;line-height:1.2;margin-top:4px;"
+            f"white-space:normal;overflow-wrap:anywhere;word-break:break-word'>{safe}</div>")
+
+
+def _card_html(idx, meta, extra=""):
+    """Single result card as an HTML string: cover → title → platform (· extra).
+    Used by the CSS-grid comparison; mirrors the Steam app's `_card`."""
+    row = meta.loc[idx]
+    bits = []
+    if row.platform:
+        bits.append(html.escape(str(row.platform)))
+    if extra:
+        bits.append(extra)
+    meta_el = (f"<div style='font-size:.72rem;opacity:.6;margin-top:2px;"
+               f"white-space:normal;overflow-wrap:anywhere'>{' · '.join(bits)}</div>"
+               if bits else "")
+    return f"<div style='min-width:0'>{_cover_div(row.image)}{_title_div(row.title)}{meta_el}</div>"
+
+
+def render_cards(idxs, meta, scores=None, ncols=COVER_COLS):
+    """Responsive grid of cover cards laid out with st.columns: one row of `ncols`
+    at a time, the last row left-packed with the leftover columns blank. Each card
+    is cover → title → platform · score caption (Steam-app result format)."""
+    for row_start in range(0, len(idxs), ncols):
+        chunk = idxs[row_start:row_start + ncols]
+        cols = st.columns(ncols)
+        for offset, (col, idx) in enumerate(zip(cols, chunk)):
+            i = row_start + offset
+            row = meta.loc[idx]
+            with col:
+                st.html(_cover_div(row.image))
+                st.html(_title_div(row.title))
+                bits = []
+                if row.platform:
+                    bits.append(str(row.platform))
+                if scores is not None:
+                    bits.append(f"cos {scores[i]:.3f}")
+                if bits:
+                    st.caption(" · ".join(bits))
+
+
+# Row-per-rank CSS grid (rank | left card | right card), matching the Steam app's
+# ranker comparison. INLINE styles + st.html (not st.columns): Streamlit columns
+# stack on mobile, and `minmax(0,1fr)` lets each track shrink so long titles wrap
+# instead of bleeding into the next column.
+_CMP_ROW = ("display:grid;grid-template-columns:1.6rem minmax(0,1fr) minmax(0,1fr);"
+            "column-gap:22px;align-items:start;margin-bottom:16px")
+_CMP_RANK = "text-align:center;font-weight:700;opacity:.55;font-size:.8rem;padding-top:2px"
+
+
+def _cmp_header(label, order_ids, meta):
+    """Header cell: column label over the (numbered) input history for that column,
+    so each result column sits under the order that produced it."""
+    items = "".join(
+        f"<div style='display:flex;gap:5px;margin-bottom:2px'>"
+        f"<span style='opacity:.5;font-weight:700;flex:none'>{n}</span>"
+        f"<span style='min-width:0;overflow-wrap:anywhere'>{html.escape(str(meta.loc[i].title))}</span>"
+        f"</div>"
+        for n, i in enumerate(order_ids, 1)
+    )
+    return (f"<div style='min-width:0'>"
+            f"<div style='font-weight:600;font-size:.85rem;margin-bottom:6px'>{label}</div>"
+            f"<div style='font-size:.76rem;line-height:1.5;opacity:.85'>{items}</div></div>")
+
+
+def render_comparison(left_ids, right_ids, meta, left_label, right_label,
+                      left_order, right_order):
+    """Two-column row-per-rank comparison of two recommendation lists, formatted like
+    the Steam app's ranker side-by-side."""
+    parts = [
+        f"<div style='{_CMP_ROW}'><div style='{_CMP_RANK}'></div>"
+        f"{_cmp_header(left_label, left_order, meta)}"
+        f"{_cmp_header(right_label, right_order, meta)}</div>"
+    ]
+    for i in range(max(len(left_ids), len(right_ids))):
+        left = _card_html(left_ids[i], meta) if i < len(left_ids) else "<div></div>"
+        right = _card_html(right_ids[i], meta) if i < len(right_ids) else "<div></div>"
+        parts.append(
+            f"<div style='{_CMP_ROW}'><div style='{_CMP_RANK}'>{i + 1}</div>{left}{right}</div>"
+        )
+    st.html("".join(parts))
 
 
 # ── scoring ────────────────────────────────────────────────────────────────────
 
-def recommend_display(model, meta, history, games_only):
-    """Top-N item ids for a history. Over-fetch then trim so the games-only
-    toggle never produces a short/ragged list (§6, Decision #10)."""
+def recommend_display(model, meta, history):
+    """Top-N game item ids for a history. Accessories / consoles are always hidden;
+    over-fetch then trim so the games-only filter never yields a short list."""
     recs = recommend(model, history, len(meta), DEVICE, k=OVERFETCH)
-    if games_only:
-        recs = [i for i in recs if meta.loc[i].kind == "game"]
+    recs = [i for i in recs if meta.loc[i].kind == "game"]
     return recs[:N_RECS]
 
 
@@ -114,84 +171,83 @@ def constrained_shuffle(ids):
 
 # ── tabs ─────────────────────────────────────────────────────────────────────
 
-def tab_recommend(model, meta, label_to_idx, idx_to_label):
-    st.subheader("Recommendations that depend on order")
-    st.caption(
-        "Pick games in the order you'd have bought them — the last one is the most "
-        "recent. Then hit **Shuffle** to see the *same games in a different order* "
-        "produce a different next-item prediction."
-    )
-
-    default = [idx_to_label[i] for i in CANARIES["JRPG fan"]]
-    selection = st.multiselect(
-        "Your purchase history (in order — last = most recent)",
-        options=list(label_to_idx.keys()),
-        default=default,
-        key="rec_sel",
-    )
-    history = [label_to_idx[l] for l in selection]
-    games_only = st.checkbox("Show games only (hide accessories / consoles)",
-                             value=True, key="rec_go")
-
-    if not history:
-        st.info("Select at least one game to get recommendations.")
-        return
-
-    c1, c2 = st.columns([1, 4])
-    if c1.button("🔀 Shuffle history", use_container_width=True):
+def render_history_recs(model, meta, history, key):
+    """Shuffle button + order-sensitivity comparison (or plain recs) for a history.
+    Shared by the Recommend and Example-users tabs; `key` namespaces the button and
+    session state so the two tabs don't collide."""
+    shuf_key, base_key = f"{key}_shuf_ids", f"{key}_shuf_base"
+    if st.button("🔀 Shuffle history", use_container_width=True, key=f"{key}_shuffle"):
         if len(history) >= 2:
-            st.session_state["shuf_ids"] = constrained_shuffle(history)
-            st.session_state["shuf_base"] = history[:]
+            st.session_state[shuf_key] = constrained_shuffle(history)
+            st.session_state[base_key] = history[:]
         else:
-            st.session_state.pop("shuf_ids", None)
+            st.session_state.pop(shuf_key, None)
 
-    shuf = st.session_state.get("shuf_ids")
-    valid_shuffle = shuf is not None and st.session_state.get("shuf_base") == history
+    shuf = st.session_state.get(shuf_key)
+    valid_shuffle = shuf is not None and st.session_state.get(base_key) == history
 
     if valid_shuffle:
-        left, right = st.columns(2)
-        with left:
-            st.markdown("**Original order**")
-            st.html(order_html(history, meta))
-            render_cards(recommend_display(model, meta, history, games_only), meta)
-        with right:
-            st.markdown("**Shuffled order**")
-            st.html(order_html(shuf, meta))
-            render_cards(recommend_display(model, meta, shuf, games_only), meta)
+        render_comparison(
+            recommend_display(model, meta, history),
+            recommend_display(model, meta, shuf),
+            meta, "Original order", "Shuffled order", history, shuf,
+        )
         st.caption(
             "Same games, different order → different next-item prediction. A two-tower "
             "model pools the history orderlessly and would return identical lists; the "
             "transformer reads positional embeddings, so the most recent items steer the recs."
         )
     else:
-        render_cards(recommend_display(model, meta, history, games_only), meta)
+        render_cards(recommend_display(model, meta, history), meta)
         st.caption("Press **Shuffle history** to compare this list against a reordered history.")
 
 
+def tab_recommend(model, meta, label_to_idx, options):
+    st.caption(
+        "Pick games in the order you'd have bought them — the last one is the most "
+        "recent. Then hit **Shuffle** to see the *same games in a different order* "
+        "produce a different next-item prediction."
+    )
+
+    selection = st.multiselect(
+        "Your purchase history (in order — last = most recent)",
+        options=options,
+        key="rec_sel",
+    )
+    history = [label_to_idx[l] for l in selection]
+
+    if not history:
+        st.info("Select at least one game to get recommendations.")
+        return
+
+    render_history_recs(model, meta, history, "rec")
+
+
 def tab_personas(model, meta):
-    st.subheader("Prebuilt personas")
+    st.subheader("Example users")
     st.caption("Hand-built histories with coherent taste — a quick way to see clean recs "
                "without assembling a history yourself.")
-    name = st.selectbox("Persona", SHOWCASE, key="persona_sel")
-    history = CANARIES[name]
-    games_only = st.checkbox("Show games only (hide accessories / consoles)",
-                             value=True, key="persona_go")
-    st.markdown("**History (chronological)**")
-    st.html(order_html(history, meta))
-    st.markdown("**Top recommendations**")
-    render_cards(recommend_display(model, meta, history, games_only), meta)
+    name = st.selectbox("Example user", SHOWCASE, index=None,
+                        placeholder="Choose an example user…", key="persona_sel")
+    if name is None:
+        st.info("Choose an example user to see their recommendations.")
+        return
+    render_history_recs(model, meta, CANARIES[name], "persona")
 
 
-def tab_similar(model, meta, label_to_idx, idx_to_label):
+def tab_similar(model, meta, label_to_idx, options):
     st.subheader("Similar items")
     st.caption(SIMILAR_CAVEAT)
-    default_seed = 4489  # Resident Evil 4 - PS2 (a clean mid-tail seed)
     seed_label = st.selectbox(
         "Seed game",
-        options=list(label_to_idx.keys()),
-        index=list(label_to_idx.keys()).index(idx_to_label[default_seed]),
+        options=options,
+        index=None,
+        placeholder="Choose a seed game…",
         key="sim_sel",
     )
+    if seed_label is None:
+        st.info("Choose a seed game to see its nearest neighbors.")
+        return
     seed_id = label_to_idx[seed_label]
     E = item_matrix(model)
     neighbors = most_similar(E, seed_id, N_RECS)
@@ -223,12 +279,12 @@ def tab_about():
 
 # ── app ────────────────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="Amazon Video Games SASRec", layout="wide")
+st.set_page_config(page_title="Amazon Game Recommender (Transformer Model)", layout="wide")
 st.markdown(_STYLE, unsafe_allow_html=True)
-st.title("Amazon Video Games — Sequential Recommender (SASRec)")
+st.title("Amazon Game Recommender (Transformer Model)")
 st.markdown(
     "<small>A transformer that recommends your next game from the <b>order</b> of your "
-    "history. Built from scratch in PyTorch on the "
+    "history.<br>Built from scratch in PyTorch on the "
     "<a href='https://nijianmo.github.io/amazon/' target='_blank'>UCSD Amazon 2018</a> "
     "dataset.</small>",
     unsafe_allow_html=True,
@@ -238,15 +294,18 @@ model = load_model()
 meta = load_metadata()
 idx_to_label = meta["label"].to_dict()
 label_to_idx = {v: k for k, v in idx_to_label.items()}
+# Picker options ordered by popularity (interaction count, desc) so the most
+# recognizable games surface first instead of opaque ASIN order.
+popular_labels = meta.sort_values("interaction_count", ascending=False)["label"].tolist()
 
 rec_tab, persona_tab, similar_tab, about_tab = st.tabs(
-    ["Recommend", "Personas", "Similar", "About"]
+    ["Recommend", "Example Users", "Similar", "About"]
 )
 with rec_tab:
-    tab_recommend(model, meta, label_to_idx, idx_to_label)
+    tab_recommend(model, meta, label_to_idx, popular_labels)
 with persona_tab:
     tab_personas(model, meta)
 with similar_tab:
-    tab_similar(model, meta, label_to_idx, idx_to_label)
+    tab_similar(model, meta, label_to_idx, popular_labels)
 with about_tab:
     tab_about()

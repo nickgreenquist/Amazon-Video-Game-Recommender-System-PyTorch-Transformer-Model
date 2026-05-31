@@ -25,7 +25,7 @@ working and verified.
 > - **Label disambiguation is collision-only:** append `(#idx)` to any base that
 >   isn't unique (cleaner than the literal "platform empty OR collides" rule, and
 >   still guarantees every label → exactly one idx). Verified unique catalog-wide.
-> - **Slim parquet is ~0.7 MB** (not the 2–3 MB estimate); 5 cols, 16,882 rows.
+> - **Slim parquet is ~0.7 MB** (not the 2–3 MB estimate); 6 cols, 16,882 rows.
 > - **Covers use `background-size: contain` on a square panel** (Amazon product
 >   photos have mixed aspect ratios; `contain` avoids cropping) rather than
 >   Steam's `cover` banner aspect — same `_cover_div` background-image technique.
@@ -209,10 +209,13 @@ picking. (DRY: that logic lives in one place.)
    These 17 asins are genuinely absent from raw `meta_Video_Games.json.gz`
    (0/17 present — confirmed), so they are unrecoverable, **not a build bug**.
    Placeholder = `title="(no metadata)", platform="", kind="unknown", image=""`.
-4. **Slim to exactly 5 columns: `idx, title, platform, kind, image`.** Drop
-   `description, also_buy, also_view, price, sales_rank, brand, category,
-   interaction_count` — the UI renders none of them; they are the bulk of the
-   18.6 MB. Result ≈ 2–3 MB.
+4. **Slim to exactly 6 columns: `idx, title, platform, kind, image,
+   interaction_count`.** Drop `description, also_buy, also_view, price,
+   sales_rank, brand, category` — the UI renders none of them; they are the bulk
+   of the 18.6 MB. **Keep `interaction_count`** (carried straight from the rich
+   source, NOT re-derived): it orders the demo pickers by popularity so the most
+   recognizable games surface first instead of opaque ASIN order (§8.1). Result
+   ≈ 0.7 MB.
 5. Write `serving/item_metadata.parquet`, **idx-keyed, exactly 16,882 rows.**
 
 **idx convention (do not get this wrong):** `item_id_to_idx.json` values are
@@ -306,6 +309,10 @@ constrained shuffle that never leaves the last item unchanged (§8.1).
   IS the chronological history (last selected = most recent → matches the
   training convention). No search-box+add-button, **no drag, no up/down
   buttons.** Remove = deselect.
+- **Picker options are ordered by `interaction_count`, descending** (most popular
+  first) — so the type-to-filter list surfaces recognizable games instead of the
+  opaque ASIN order the idx-keyed parquet would otherwise give. Same ordering for
+  the Tab 3 seed `selectbox`.
 - **Label disambiguation:** 824 corpus items share a title with another item
   ("Spider-Man" spans 7 platforms). Build multiselect labels as
   `"{title} — {platform}"`, appending a short idx/asin suffix when `platform` is
@@ -419,7 +426,7 @@ so the stored `image` column is the only source — which is why §5 keeps it.
 2. **Packageify `src/`** (`from src.X`, `python -m src.main`); no path shim. (§4.1)
 3. **Root `streamlit_app.py`**, no `streamlit/` dir; `src/serving.py` for new helpers only. (§4, §7)
 4. **`serving/` = 2 files** (`stage3_best.pth` + `item_metadata.parquet`); single model. (§4, §11)
-5. **Build fresh idx-keyed parquet** via thin transform; 17 placeholder rows; slim to 5 cols. (§5)
+5. **Build fresh idx-keyed parquet** via thin transform; 17 placeholder rows; slim to 6 cols (incl. `interaction_count` for popularity-ordered pickers). (§5)
 6. **`kind=="game"`** toggle signal; **HighRes-first** images; CDN URLs verified live. (§5, §6, §8.5)
 7. **Order-sensitivity empirically validated** (4–10/10); **JRPG default seed**. (§7, §8.1)
 8. **`st.multiselect` ordered input**; `"{title} — {platform}"` labels; no drag/buttons. (§8.1)
