@@ -101,8 +101,9 @@ are called out where they occur.
 - **No dependency on the multi-GB raw download at serve time.** Metadata is
   precomputed into a small parquet (§5). Streamlit Community Cloud cannot host
   `data/raw/`.
-- **No games-only filtering of training or scoring.** Games-only is a *cosmetic
-  display toggle* only (§6, and the invariant in CLAUDE.md).
+- **No games-only filtering anywhere.** Training, scoring, *and* display all use
+  the full corpus — accessories/consoles/guides are recommended alongside games
+  (§6, and the invariant in CLAUDE.md).
 - **No second model served.** Only Stage 3 ships. The ablation is a *static
   table* (Tab 4); we do **not** serve Stage 1/2 checkpoints for live multi-stage
   scoring. No attention-weight visualization. (Decisions #4, #12.)
@@ -239,24 +240,18 @@ placeholder) render the placeholder panel (§8.5).
 1..n_items used by the corpus; spot-check 3 titles + their image URLs resolve;
 `serving/` total < 50 MB.
 
-## 6. Games-only display toggle (cosmetic, serve-time only) — Decisions #6, #10
+## 6. Recommendations span all product types (no games-only filter) — Decisions #6, #10
 
 The model trains and scores on the **full 5-core corpus** (consoles, accessories,
 guides included — CLAUDE.md invariant; `kind` shows ~27% non-game: 4,114
-accessory + 379 console + 232 unknown + 19 other). The demo offers a "show games
-only" checkbox that filters **already-computed** recommendations before display,
-using `kind == "game"`. This never changes what the model scores.
+accessory + 379 console + 232 unknown + 19 other). The demo displays those
+recommendations **raw** — every video-game-category product type is eligible, so
+accessories/consoles/guides surface alongside games. There is **no** games-only
+toggle or filter at any layer.
 
-**Implementation — over-fetch then trim to a fixed count (Decision #10):**
-- Score the full corpus (unchanged) and take a generous top-N, e.g. **top-40**.
-- If toggle **on**: keep rows where `kind == "game"`, then take the first **10**.
-- If toggle **off**: take the first **10** raw (accessories/consoles included).
-- Always render exactly 10 rows. This keeps the Tab 1 side-by-side lists
-  **equal-length** (a filter-in-place top-10 could leave 6–7 rows and look
-  broken) and never shows a stub list.
-
-Default the toggle **on** for a clean first impression, but keep it toggleable so
-the honest, unfiltered behavior is one click away.
+**Implementation:** score the full corpus and take the first **10** for display.
+The Tab 1 side-by-side lists are always exactly 10 rows (no filter that could
+leave a short stub list).
 
 ## 7. Inference contract (must match the offline path exactly)
 
@@ -321,14 +316,14 @@ constrained shuffle that never leaves the last item unchanged (§8.1).
   most robustly order-sensitive history (9/10 changed on full reversal, 8/10 even
   on a minimal reorder), so the page demonstrates the point on first paint and
   any shuffle visibly moves the list. (Backups: "Sony handheld", "Western RPG".)
-- Show top-10 recommendations (games-only toggle from §6, default on).
+- Show top-10 recommendations (all product types — §6; no games-only filter).
 - **Order-sensitivity panel (the whole point):** a **shuffle** button drives a
   **side-by-side** view — original recs (left) vs reordered recs (right), with
   each history's order shown above its column. The shuffle is a **constrained
   shuffle: reject any permutation that leaves the last item unchanged** (the user
   never knows it's constrained; this guarantees a visible delta even for
   last-item-dominated histories). A short caption names what happened ("same
-  games, different order → different next-item prediction") so a non-expert gets
+  items, different order → different next-item prediction") so a non-expert gets
   the significance.
 
 ### 8.2 Tab 2 — Personas — Decision #12
@@ -343,7 +338,7 @@ constrained shuffle that never leaves the last item unchanged (§8.1).
 
 ### 8.3 Tab 3 — Similar to
 
-- User picks a seed game (same search/multiselect input); show top-10 cosine
+- User picks a seed item (same search/multiselect input); show top-10 cosine
   neighbors with scores and cover art via `most_similar` / `item_matrix`
   (imported from `src.similar_items`).
 - Caption that this reads the **embedding geometry directly** (no sequence
@@ -384,12 +379,10 @@ so the stored `image` column is the only source — which is why §5 keeps it.
    **Verify:** row count == 16,882; spot-check 3 titles + image URLs resolve;
    `serving/` < 50 MB.
 3. **`src/serving.py` load + `recommend()` parity (Decision #11).**
-   **Verify:** for one SHOWCASE persona, the app's **unfiltered** recs (games-only
-   toggle **OFF** / pre-filter output) == `python -m src.canaries --only <name>`
-   top-10. The gate MUST run toggle-OFF — with the cosmetic filter on, the lists
-   legitimately differ (a hidden accessory promotes a lower-ranked game) and the
-   test would fail for a fake reason. If the unfiltered lists differ, the serving
-   path diverged — fix before building UI.
+   **Verify:** for one SHOWCASE persona, the app's recs == `python -m src.canaries
+   --only <name>` top-10. The demo applies no display filter, so this is a direct
+   comparison. If the lists differ, the serving path diverged — fix before
+   building UI.
 4. **Tab 1** minimal (multiselect history → recs), then add the shuffle +
    side-by-side order-sensitivity panel.
    **Verify:** shuffling the JRPG seed visibly changes the rec list (expect
@@ -418,7 +411,7 @@ so the stored `image` column is the only source — which is why §5 keeps it.
 - Attention-weight visualization (Decision #12).
 - Drag-and-drop / up-down manual reordering and the `streamlit-sortables`
   dependency — the shuffle button is the reorder UX (Decision #8).
-- Any games-only filtering of training or scoring (CLAUDE.md invariant).
+- Any games-only filtering of training, scoring, or display (CLAUDE.md invariant).
 
 ## 12. Resolved decisions (quick index)
 
@@ -427,12 +420,12 @@ so the stored `image` column is the only source — which is why §5 keeps it.
 3. **Root `streamlit_app.py`**, no `streamlit/` dir; `src/serving.py` for new helpers only. (§4, §7)
 4. **`serving/` = 2 files** (`stage3_best.pth` + `item_metadata.parquet`); single model. (§4, §11)
 5. **Build fresh idx-keyed parquet** via thin transform; 17 placeholder rows; slim to 6 cols (incl. `interaction_count` for popularity-ordered pickers). (§5)
-6. **`kind=="game"`** toggle signal; **HighRes-first** images; CDN URLs verified live. (§5, §6, §8.5)
+6. **All product types shown** (no games-only filter); **HighRes-first** images; CDN URLs verified live. (§5, §6, §8.5)
 7. **Order-sensitivity empirically validated** (4–10/10); **JRPG default seed**. (§7, §8.1)
 8. **`st.multiselect` ordered input**; `"{title} — {platform}"` labels; no drag/buttons. (§8.1)
 9. **Constrained shuffle** (never same last item) → **side-by-side** comparison. (§8.1)
-10. **Games-only = over-fetch top-40 → filter → trim to 10**; default on. (§6)
-11. **Parity gate runs toggle-OFF** / pre-filter, comparing serving math to `canaries.py`. (§9 step 3)
+10. **All product types in recs** — top-10 raw, no games-only filter. (§6)
+11. **Parity gate** compares the app's (unfiltered) serving math to `canaries.py`. (§9 step 3)
 12. **Cut** live multi-stage + attention viz; ablation static; Tab 3 reuses honest caveat. (§8, §11)
 13. **`requirements.txt` += `streamlit`** (unpinned); no Python pin. (§4, §10)
 ```

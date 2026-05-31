@@ -101,7 +101,7 @@ There is no automated test suite; verification is the per-stage metrics + the ca
 
 ### Canary personas (`src/canaries.py`)
 
-Hand-built synthetic users for eyeballing recommendation quality before the Streamlit demo. Two groups: **SHOWCASE** (dense, coherent genres — Vintage PS2/PC, Western RPG, PC strategy, Nintendo, Sony handheld — recommend cleanly, ~15–20/20 on-genre) and **DIAGNOSTIC** (sparse genres — horror/fighting/racing — collapse to platform popularity; best ~2/5 top-5). The DIAGNOSTIC three are kept for analysis but **must not be featured in the deployed Streamlit demo** (`canary_experiments.py` documents the 18-history sweep proving the ceiling). Persona games are picked from higher-interaction items (counts in code comments) so embeddings are well-trained; recs are shown raw (no games-only filter) — a cosmetic games-only display filter is a serve-time option for the demo, never for training/scoring.
+Hand-built synthetic users for eyeballing recommendation quality before the Streamlit demo. Two groups: **SHOWCASE** (dense, coherent genres — Vintage PS2/PC, Western RPG, PC strategy, Nintendo, Sony handheld — recommend cleanly, ~15–20/20 on-genre) and **DIAGNOSTIC** (sparse genres — horror/fighting/racing — collapse to platform popularity; best ~2/5 top-5). The DIAGNOSTIC three are kept for analysis but **must not be featured in the deployed Streamlit demo** (`canary_experiments.py` documents the 18-history sweep proving the ceiling). Persona items are picked from higher-interaction items (counts in code comments) so embeddings are well-trained; recs are shown raw — all video-game-category product types (games, accessories, consoles, guides) are eligible to be recommended. The demo applies no games-only display filter, and training/scoring never filter either.
 
 ## Goal
 
@@ -121,7 +121,7 @@ Progressive, ablation-driven implementation of sequential recommendation on the 
 - **Item embedding is tied**: the same embedding table is used for both input and candidate scoring (the training/eval loops call `model.item_embedding(...)` directly), so every stage's model must expose an `item_embedding` attribute and `forward` must return per-position output of shape `(B, L, D)`.
 - **Negatives are resampled fresh every batch**, never precomputed.
 - **Timestamp ties break deterministically by `asin`** during preprocessing.
-- **Train on the full item corpus** — consoles, accessories, guides, etc. are kept, NOT filtered to games-only. Published SASRec numbers are computed on the full 5-core category, so filtering would break benchmark comparability and the 5-core guarantee. Non-game items may *optionally* be hidden from displayed recommendations at demo time (a cosmetic serve-time filter); never filter them out of training or scoring.
+- **Train on the full item corpus** — consoles, accessories, guides, etc. are kept, NOT filtered to games-only. Published SASRec numbers are computed on the full 5-core category, so filtering would break benchmark comparability and the 5-core guarantee. All item types also appear in displayed recommendations — the demo does **not** filter to games-only; never filter them out of training, scoring, or display.
 
 ## Shared training/eval (identical across Stages 1–3 for fair comparison)
 

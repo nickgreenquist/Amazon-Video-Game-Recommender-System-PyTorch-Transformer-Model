@@ -24,7 +24,6 @@ from src.serving import (DEVICE, item_matrix, load_metadata, load_model,
 
 ROOT = Path(__file__).resolve().parent
 N_RECS = 10
-OVERFETCH = 40          # score this many, then trim to N_RECS after games-only filter
 SIMILAR_CAVEAT = (
     "This reads the learned item-embedding geometry directly (cosine similarity, "
     "no sequence model, no forward pass). The embedding was trained only for "
@@ -150,11 +149,9 @@ def render_comparison(left_ids, right_ids, meta, left_label, right_label,
 # ── scoring ────────────────────────────────────────────────────────────────────
 
 def recommend_display(model, meta, history):
-    """Top-N game item ids for a history. Accessories / consoles are always hidden;
-    over-fetch then trim so the games-only filter never yields a short list."""
-    recs = recommend(model, history, len(meta), DEVICE, k=OVERFETCH)
-    recs = [i for i in recs if meta.loc[i].kind == "game"]
-    return recs[:N_RECS]
+    """Top-N recommended item ids for a history — all video-game-category products
+    (games, accessories, consoles, guides) are eligible, nothing is filtered out."""
+    return recommend(model, history, len(meta), DEVICE, k=N_RECS)
 
 
 def constrained_shuffle(ids, current=None):
@@ -202,7 +199,7 @@ def render_history_recs(model, meta, history, key):
             meta, "Original order", "Shuffled order", history, shuf,
         )
         st.caption(
-            "Same games, different order → different next-item prediction. A two-tower "
+            "Same items, different order → different next-item prediction. A two-tower "
             "model pools the history orderlessly and would return identical lists; the "
             "transformer reads positional embeddings, so the most recent items steer the recs."
         )
@@ -212,8 +209,8 @@ def render_history_recs(model, meta, history, key):
 
 def tab_recommend(model, meta, label_to_idx, options):
     st.caption(
-        "Pick games in the order you'd have bought them — the last one is the most "
-        "recent. Then hit **Shuffle** to see the *same games in a different order* "
+        "Pick items in the order you'd have bought them — the last one is the most "
+        "recent. Then hit **Shuffle** to see the *same items in a different order* "
         "produce a different next-item prediction."
     )
 
@@ -225,7 +222,7 @@ def tab_recommend(model, meta, label_to_idx, options):
     history = [label_to_idx[l] for l in selection]
 
     if not history:
-        st.info("Select at least one game to get recommendations.")
+        st.info("Select at least one item to get recommendations.")
         return
 
     render_history_recs(model, meta, history, "rec")
@@ -245,14 +242,14 @@ def tab_personas(model, meta):
 def tab_similar(model, meta, label_to_idx, options):
     st.caption(SIMILAR_CAVEAT)
     seed_label = st.selectbox(
-        "Seed game",
+        "Seed item",
         options=options,
         index=None,
-        placeholder="Choose a seed game…",
+        placeholder="Choose a seed item…",
         key="sim_sel",
     )
     if seed_label is None:
-        st.info("Choose a seed game to see its nearest neighbors.")
+        st.info("Choose a seed item to see its nearest neighbors.")
         return
     seed_id = label_to_idx[seed_label]
     E = item_matrix(model)
@@ -273,8 +270,11 @@ def tab_about():
         "A from-scratch PyTorch implementation of **SASRec** "
         "([Kang & McAuley, 2018](https://arxiv.org/abs/1808.09781)), built as a staged "
         "ablation on the Amazon Video Games 5-core 2018 dataset so each architectural "
-        "component's contribution can be measured. Stage 3 (full SASRec) lands at "
-        "**sampled NDCG@10 = 0.5188** vs the paper's published 0.5360 (within 3.2%)."
+        "component's contribution can be measured."
+    )
+    st.markdown(
+        "Stage 3 (full SASRec) lands at **sampled NDCG@10 = 0.5188** vs the paper's "
+        "published 0.5360 (within 3.2%)."
     )
     st.markdown(
         "Code & write-up: "
@@ -329,12 +329,13 @@ def _render_writeup(text):
 
 # ── app ────────────────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="Amazon Game Recommender (Transformer Model)", layout="wide")
+st.set_page_config(page_title="Amazon Video Games Recommender (Transformer Model)", layout="wide")
 st.markdown(_STYLE, unsafe_allow_html=True)
-st.title("Amazon Game Recommender (Transformer Model)")
+st.title("Amazon Video Games Recommender (Transformer Model)")
 st.markdown(
-    "<small>A transformer that recommends your next game from your play history — the "
-    "<b>sequence</b> you played games in, not just which ones.<br>Built from scratch in PyTorch on the "
+    "<small>A transformer that recommends your next video game product — game, accessory, "
+    "console, or guide — from your purchase history. It reads the <b>sequence</b> you bought "
+    "items in, not just which ones.<br>Built from scratch in PyTorch on the "
     "<a href='https://nijianmo.github.io/amazon/' target='_blank'>UCSD Amazon 2018</a> "
     "dataset.</small>",
     unsafe_allow_html=True,
@@ -345,7 +346,7 @@ meta = load_metadata()
 idx_to_label = meta["label"].to_dict()
 label_to_idx = {v: k for k, v in idx_to_label.items()}
 # Picker options ordered by popularity (interaction count, desc) so the most
-# recognizable games surface first instead of opaque ASIN order.
+# recognizable items surface first instead of opaque ASIN order.
 popular_labels = meta.sort_values("interaction_count", ascending=False)["label"].tolist()
 
 rec_tab, persona_tab, similar_tab, about_tab = st.tabs(
