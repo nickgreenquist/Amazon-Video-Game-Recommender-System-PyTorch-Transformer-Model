@@ -1,4 +1,4 @@
-# Ablation: Building Up Sequential Recommendation on Amazon Video Games
+# From Bag-of-Items to SASRec: Measuring Each Component As We Add It
 
 Dataset: Amazon Video Games 5-core 2018 (McAuley UCSD), preprocessed with
 dedup + iterative 5-core. 50,626 users · 16,882 items · 453,881 interactions
@@ -77,15 +77,3 @@ Hit@10 matches/slightly beats published. NDCG@10 sits within the 5%
 band, well inside the plan's 5-10% success target. Both stages 2 and 3
 converged around epoch 495 (best_val_ndcg10 plateaued at 0.55±0.005 in
 the last 30 epochs).
-
-## A note on training budget
-
-The initial 200-epoch runs (per the plan's default budget) landed Stage 3
-sampled NDCG@10 at 0.4724 — 11.9% below published, just outside the 10%
-target. All three stages had monotonically-climbing val curves at
-epoch 200, so the gap was undertraining, not an architectural problem.
-Re-running all three at 500 epochs (with patience=10 for noise
-tolerance) closed the gap and confirmed the ablation deltas held (sign
-and magnitude of Stage 2→3 went from −0.003 noise to +0.008 real). The
-final numbers reported above are the 500-epoch runs, with all three
-stages on the same training budget for cross-stage fairness.

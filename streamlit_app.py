@@ -11,8 +11,11 @@ two-tower model structurally cannot do. Everything else is supporting cast.
 
 import html
 import random
+import re
+import textwrap
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 from src.canaries import CANARIES, SHOWCASE
@@ -43,6 +46,7 @@ _STYLE = """
 .main .block-container { overflow-x:hidden; max-width:100%; }
 div[data-testid="stCaptionContainer"] p { word-break:break-word; white-space:normal; }
 div[data-testid="stTabs"] > div:first-child { overflow-x:auto; white-space:nowrap; flex-wrap:nowrap; }
+div[data-testid="stDataFrame"] { overflow-x:auto; max-width:100%; }
 </style>
 """
 
@@ -153,18 +157,22 @@ def recommend_display(model, meta, history):
     return recs[:N_RECS]
 
 
-def constrained_shuffle(ids):
-    """A permutation that never leaves the last item unchanged — order-sensitivity
-    is last-item-dominated, so this guarantees a visible delta (§8.1, Decision #9)."""
+def constrained_shuffle(ids, current=None):
+    """A permutation that differs from `current` (the ordering on screen now —
+    defaults to ids on the first shuffle) AND ends in a different last item than
+    current. Order-sensitivity is last-item-dominated, so this guarantees every
+    press visibly changes the most-recent item, not just the first (§8.1,
+    Decision #9). Comparing against `current` (not always ids) lets a later press
+    cycle back to the original ordering, which matters for 2-item histories."""
     if len(ids) < 2:
         return list(ids)
-    last = ids[-1]
+    current = ids if current is None else current
     for _ in range(100):
         p = ids[:]
         random.shuffle(p)
-        if p[-1] != last and p != ids:
+        if p[-1] != current[-1] and p != current:
             return p
-    p = ids[:]                       # fallback: move the old last item off the end
+    p = current[:]                   # fallback: swap to force a different last item
     p[0], p[-1] = p[-1], p[0]
     return p
 
@@ -178,7 +186,8 @@ def render_history_recs(model, meta, history, key):
     shuf_key, base_key = f"{key}_shuf_ids", f"{key}_shuf_base"
     if st.button("🔀 Shuffle history", use_container_width=True, key=f"{key}_shuffle"):
         if len(history) >= 2:
-            st.session_state[shuf_key] = constrained_shuffle(history)
+            prev = st.session_state.get(shuf_key) if st.session_state.get(base_key) == history else None
+            st.session_state[shuf_key] = constrained_shuffle(history, prev)
             st.session_state[base_key] = history[:]
         else:
             st.session_state.pop(shuf_key, None)
@@ -199,7 +208,6 @@ def render_history_recs(model, meta, history, key):
         )
     else:
         render_cards(recommend_display(model, meta, history), meta)
-        st.caption("Press **Shuffle history** to compare this list against a reordered history.")
 
 
 def tab_recommend(model, meta, label_to_idx, options):
@@ -224,7 +232,6 @@ def tab_recommend(model, meta, label_to_idx, options):
 
 
 def tab_personas(model, meta):
-    st.subheader("Example users")
     st.caption("Hand-built histories with coherent taste — a quick way to see clean recs "
                "without assembling a history yourself.")
     name = st.selectbox("Example user", SHOWCASE, index=None,
@@ -236,7 +243,6 @@ def tab_personas(model, meta):
 
 
 def tab_similar(model, meta, label_to_idx, options):
-    st.subheader("Similar items")
     st.caption(SIMILAR_CAVEAT)
     seed_label = st.selectbox(
         "Seed game",
@@ -257,7 +263,12 @@ def tab_similar(model, meta, label_to_idx, options):
 
 
 def tab_about():
-    st.subheader("About this project")
+    ablation = ROOT / "results" / "ablation_table.md"
+    if not ablation.exists():
+        st.warning("results/ablation_table.md not found.")
+        return
+    lines = ablation.read_text().splitlines()
+    st.markdown(lines[0])           # the "# From Bag-of-Items …" title — the page's one H1
     st.markdown(
         "A from-scratch PyTorch implementation of **SASRec** "
         "([Kang & McAuley, 2018](https://arxiv.org/abs/1808.09781)), built as a staged "
@@ -270,11 +281,50 @@ def tab_about():
         "[GitHub](https://github.com/nickgreenquist/Amazon-Video-Game-Recommender-System-PyTorch-Transformer-Model)"
     )
     st.markdown("---")
-    ablation = ROOT / "results" / "ablation_table.md"
-    if ablation.exists():
-        st.markdown(ablation.read_text())
-    else:
-        st.warning("results/ablation_table.md not found.")
+    _render_writeup("\n".join(lines[1:]))
+
+
+_WRAP_WIDTH = 243  # max chars per rendered prose <p>; keeps long paragraphs short
+
+
+def _render_writeup(text):
+    """Render the ablation markdown. Each prose paragraph is hard-wrapped to
+    _WRAP_WIDTH chars and each chunk rendered as its own st.markdown, so long
+    paragraphs don't render as one run-on <p> that overflows on mobile; the
+    pipe-table renders as a scrollable st.dataframe."""
+    prose, table = [], []
+
+    def flush_prose():
+        if not prose:
+            return
+        block = "\n".join(prose)
+        prose.clear()
+        for para in re.split(r'\n\s*\n', block):
+            para = " ".join(para.split())
+            if not para:
+                continue
+            if para.startswith("#"):
+                st.markdown(para)
+                continue
+            for chunk in textwrap.wrap(para, width=_WRAP_WIDTH):
+                st.markdown(chunk)
+
+    def flush_table():
+        if table:
+            cells = [[c.strip().replace("**", "") for c in r.strip("|").split("|")]
+                     for r in table]
+            st.dataframe(pd.DataFrame(cells[2:], columns=cells[0]), hide_index=True)
+            table.clear()
+
+    for line in text.splitlines():
+        if line.lstrip().startswith("|"):
+            flush_prose()
+            table.append(line.strip())
+        else:
+            flush_table()
+            prose.append(line)
+    flush_table()
+    flush_prose()
 
 
 # ── app ────────────────────────────────────────────────────────────────────────
@@ -283,8 +333,8 @@ st.set_page_config(page_title="Amazon Game Recommender (Transformer Model)", lay
 st.markdown(_STYLE, unsafe_allow_html=True)
 st.title("Amazon Game Recommender (Transformer Model)")
 st.markdown(
-    "<small>A transformer that recommends your next game from the <b>order</b> of your "
-    "history.<br>Built from scratch in PyTorch on the "
+    "<small>A transformer that recommends your next game from your play history — the "
+    "<b>sequence</b> you played games in, not just which ones.<br>Built from scratch in PyTorch on the "
     "<a href='https://nijianmo.github.io/amazon/' target='_blank'>UCSD Amazon 2018</a> "
     "dataset.</small>",
     unsafe_allow_html=True,
@@ -299,7 +349,7 @@ label_to_idx = {v: k for k, v in idx_to_label.items()}
 popular_labels = meta.sort_values("interaction_count", ascending=False)["label"].tolist()
 
 rec_tab, persona_tab, similar_tab, about_tab = st.tabs(
-    ["Recommend", "Example Users", "Similar", "About"]
+    ["Recommend", "Examples", "Similar", "About"]
 )
 with rec_tab:
     tab_recommend(model, meta, label_to_idx, popular_labels)
