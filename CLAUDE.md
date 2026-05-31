@@ -87,6 +87,7 @@ python src/preprocess.py                  # raw → data/processed/ (verify: 50,
 python src/main.py --stage <N>            # train+eval Stage N (N∈{1,2,3}); writes results/stage<N>_metrics.json + saved_models/stage<N>_best.pth
 python src/canaries.py [--list|--only X]  # run hand-built persona histories through Stage 3, print top-20 recs
 python src/canary_experiments.py [--only fighting|horror|racing]  # genre-hit sweep over alternate histories
+python src/similar_items.py [--id N|--search Q|--top K]  # cosine nearest-neighbors over the item embedding table (no forward pass)
 ```
 
 There is no automated test suite; verification is the per-stage metrics + the canary sanity checks.
