@@ -10,6 +10,25 @@ working and verified.
 > **Status of this doc:** rewritten after a full design grill (2026-05-31). All
 > 13 load-bearing decisions are resolved and recorded inline (see the
 > **Decisions** callouts and §12). It is meant to be coded against directly.
+>
+> **Implemented 2026-05-31** (build order §9 steps 1–5 done and verified;
+> step 6 deploy is the manual Streamlit Cloud action). Shipped: packageified
+> `src/`, `scripts/build_artifacts.py` → `serving/` (5.3 MB total), `src/serving.py`,
+> `streamlit_app.py` (4 tabs). Parity verified across all 11 personas; JRPG
+> shuffle moves 8–10/10 recs. Divergences from this spec, all deliberate:
+> - **`.gitignore` negation must be on its own line.** The §4.2 snippet showed
+>   `!serving/*.pth  # comment` inline — git treats the `#` and everything after
+>   as part of the pattern, so the negation silently fails. Comment goes above it.
+> - **`search_titles` exists in `serving.py` but the UI doesn't call it.**
+>   `st.multiselect` over all labels already type-to-filters (the exact Steam
+>   pattern), so a custom search box was unnecessary. The helper stays per §7.
+> - **Label disambiguation is collision-only:** append `(#idx)` to any base that
+>   isn't unique (cleaner than the literal "platform empty OR collides" rule, and
+>   still guarantees every label → exactly one idx). Verified unique catalog-wide.
+> - **Slim parquet is ~0.7 MB** (not the 2–3 MB estimate); 5 cols, 16,882 rows.
+> - **Covers use `background-size: contain` on a square panel** (Amazon product
+>   photos have mixed aspect ratios; `contain` avoids cropping) rather than
+>   Steam's `cover` banner aspect — same `_cover_div` background-image technique.
 
 ---
 

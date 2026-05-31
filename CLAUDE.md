@@ -71,13 +71,15 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Status: Stages 0–3 complete; Streamlit app not started
+## Status: Stages 0–3 complete; Streamlit app built and deployed
 
 `implementation_plan.md` is the authoritative spec for the **model build** (Stages 0–4) — read it before extending the project. Build in the strict order it defines and do not advance to stage N+1 until stage N is trained, verified, and its metrics recorded. The **Streamlit demo / deployment stage** has its own spec: `deployment_plan.md` (serves the trained Stage 3 as-is, no new training; leads with order-sensitivity).
 
-Done: preprocessing, dataset, Stages 1–3 (trained to 500 epochs, verified), the ablation write-up, the README, and the canary diagnostic tooling.
+Done: preprocessing, dataset, Stages 1–3 (trained to 500 epochs, verified), the ablation write-up, the README, the canary diagnostic tooling, and the **Streamlit demo** (`streamlit_app.py` + `src/serving.py`, serving artifacts in `serving/`).
 Stage 3 hits the target: sampled NDCG@10 = 0.5188 (within 3.2% of published 0.5360).
-Not started: Stage 4 (BERT4Rec, optional), the Streamlit app, deployment.
+Not started: Stage 4 (BERT4Rec, optional).
+
+`src/` is a package: run modules with `python -m src.X`, not `python src/X.py`. The app imports `from src.serving import …`, so a root-level entry point requires this.
 
 ### Commands
 
@@ -88,7 +90,12 @@ python -m src.main --stage <N>            # train+eval Stage N (N∈{1,2,3}); wr
 python -m src.canaries [--list|--only X]  # run hand-built persona histories through Stage 3, print top-20 recs
 python -m src.canary_experiments [--only fighting|horror|racing]  # genre-hit sweep over alternate histories
 python -m src.similar_items [--id N|--search Q|--top K]  # cosine nearest-neighbors over the item embedding table (no forward pass)
+
+python scripts/build_artifacts.py         # saved_models/ + data/item_metadata.parquet → serving/ (idx-keyed slim parquet + checkpoint copy)
+streamlit run streamlit_app.py            # local demo; reads only serving/ (no raw data needed)
 ```
+
+The deployed demo (Streamlit Community Cloud) runs `streamlit_app.py` from repo root off committed `serving/` artifacts. `deployment_plan.md` is the authoritative spec for this stage.
 
 There is no automated test suite; verification is the per-stage metrics + the canary sanity checks.
 
