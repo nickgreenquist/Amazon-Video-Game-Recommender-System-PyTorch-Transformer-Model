@@ -1,5 +1,7 @@
 # Amazon Video Games Sequential Recommender — Building SASRec from First Principles
 
+**▶ [Live demo](https://amazon-video-game-recommender-system-pytorch-transformer-model.streamlit.app/)** — order-sensitive recommendations, example users, similar items, and the ablation write-up.
+
 A PyTorch sequential recommender for the Amazon Video Games 5-core (2018) dataset,
 built **progressively** so each architectural component can be measured in isolation.
 The endpoint is [SASRec](https://arxiv.org/abs/1808.09781) (Kang & McAuley, 2018),
@@ -68,6 +70,15 @@ src/
   train.py                       unified training loop (identical across stages 1-3)
   evaluate.py                    Hit@10 / NDCG@10, sampled + full
   main.py                        entry point: python -m src.main --stage <N>
+  canaries.py                    hand-built personas for eyeballing recommendation quality
+  similar_items.py               cosine nearest-neighbors over the item embedding table
+  serving.py                     Streamlit serving helpers (load model + metadata, reuse scoring)
+streamlit_app.py                 Streamlit demo: order-sensitivity, example users, similar items, ablation
+scripts/
+  build_artifacts.py             saved_models/ + metadata → serving/ (committed demo artifacts)
+serving/
+  stage3_best.pth                checkpoint copy served by the demo
+  item_metadata.parquet          slim idx-keyed metadata (titles, platform, image, interaction_count)
 results/
   ablation_table.md              full results write-up
   stage{1,2,3}_metrics.json      per-stage test metrics
@@ -146,9 +157,9 @@ These are constant across all stages — see [`CLAUDE.md`](CLAUDE.md) for the fu
 - [x] Stage 2 — attention, no positions
 - [x] Stage 3 — SASRec (within 3.2% of published NDCG@10)
 - [x] Ablation table + findings
+- [x] Streamlit demo app (order-sensitivity, example users, similar items, ablation write-up)
+- [x] Deploy (Streamlit Community Cloud)
 - [ ] Stage 4 — BERT4Rec *(optional)*
-- [ ] Streamlit demo app (sequential prediction + stage comparison)
-- [ ] Deploy
 
 ## References
 
