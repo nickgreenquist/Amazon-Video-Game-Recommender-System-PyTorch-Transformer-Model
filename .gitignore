@@ -4,10 +4,9 @@ data/
 # Model checkpoints / weights
 saved_models/
 *.pth
+# the ONE checkpoint we deploy is intentionally tracked
+!serving/*.pth
 *.pt
-
-# Serving artifacts (regenerated from training)
-streamlit/serving/
 
 # Reference papers (kept locally, not versioned)
 references/

@@ -17,7 +17,7 @@ delta here is the expected finding, not a bug.
 import torch
 import torch.nn as nn
 
-from models.transformer_block import TransformerBlock
+from src.models.transformer_block import TransformerBlock
 
 MAX_SEQ_LEN = 50
 

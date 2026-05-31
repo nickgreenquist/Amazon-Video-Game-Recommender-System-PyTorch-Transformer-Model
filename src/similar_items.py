@@ -12,10 +12,10 @@ The embedding was trained only for next-item prediction, so "similar" means
 showed is dominated by platform, then genre. It is NOT a content/genre model.
 
 Usage:
-    python3 src/similar_items.py                       # curated showcase seeds
-    python3 src/similar_items.py --id 15040            # neighbors of one item id
-    python3 src/similar_items.py --id 15040 --top 20
-    python3 src/similar_items.py --search witcher      # find item ids by title
+    python -m src.similar_items                       # curated showcase seeds
+    python -m src.similar_items --id 15040            # neighbors of one item id
+    python -m src.similar_items --id 15040 --top 20
+    python -m src.similar_items --search witcher      # find item ids by title
 """
 
 import argparse
@@ -24,8 +24,8 @@ import json
 import torch
 import torch.nn.functional as F
 
-from canaries import (CKPT, MAX_SEQ_LEN, ROOT, SASRec, _render_table,
-                      get_device, load_metadata)
+from src.canaries import (CKPT, MAX_SEQ_LEN, ROOT, SASRec, _render_table,
+                          get_device, load_metadata)
 
 TOP_K = 10
 

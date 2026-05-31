@@ -10,8 +10,8 @@ so the best top-5 hit rate is only ~1-2/5. The winners are promoted into
 canaries.py; the rest stays here as evidence.
 
 Usage:
-    python3 src/canary_experiments.py                 # all personas
-    python3 src/canary_experiments.py --only fighting
+    python -m src.canary_experiments                 # all personas
+    python -m src.canary_experiments --only fighting
 """
 
 import argparse
@@ -19,8 +19,8 @@ import json
 
 import torch
 
-from canaries import (CKPT, MAX_SEQ_LEN, ROOT, SASRec, get_device,
-                      load_metadata, recommend)
+from src.canaries import (CKPT, MAX_SEQ_LEN, ROOT, SASRec, get_device,
+                          load_metadata, recommend)
 
 TOP_K = 20
 

@@ -15,7 +15,7 @@ Output:
     data/processed/item_id_to_idx.json
     data/processed/user_id_to_idx.json
 
-Usage: python3 src/preprocess.py
+Usage: python -m src.preprocess
 """
 
 import gzip

@@ -20,7 +20,7 @@ import time
 import torch
 import torch.nn.functional as F
 
-from evaluate import evaluate
+from src.evaluate import evaluate
 
 
 def train(model, train_loader, val_loader, test_loader, config):

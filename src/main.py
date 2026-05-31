@@ -12,11 +12,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from dataset import SeqRecDataset, eval_collate, load_user_sequences
-from models.stage1_bag_of_items import BagOfItemsModel
-from models.stage2_attention_no_pos import AttentionNoPositionModel
-from models.stage3_sasrec import SASRec
-from train import train
+from src.dataset import SeqRecDataset, eval_collate, load_user_sequences
+from src.models.stage1_bag_of_items import BagOfItemsModel
+from src.models.stage2_attention_no_pos import AttentionNoPositionModel
+from src.models.stage3_sasrec import SASRec
+from src.train import train
 
 ROOT = Path(__file__).resolve().parents[1]
 

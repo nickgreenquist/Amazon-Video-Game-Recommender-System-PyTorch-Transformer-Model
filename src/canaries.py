@@ -14,9 +14,9 @@ See canary_experiments.py for the history-tuning sweep behind the sparse-genre
 personas (horror/fighting/racing).
 
 Usage:
-    python3 src/canaries.py                  # all canaries
-    python3 src/canaries.py --list           # just the persona names
-    python3 src/canaries.py --only vintage   # canaries whose name contains "vintage"
+    python -m src.canaries                  # all canaries
+    python -m src.canaries --list           # just the persona names
+    python -m src.canaries --only vintage   # canaries whose name contains "vintage"
 """
 
 import argparse
@@ -28,9 +28,9 @@ from pathlib import Path
 
 import torch
 
-from dataset import MAX_SEQ_LEN, _left_pad
-from main import get_device
-from models.stage3_sasrec import SASRec
+from src.dataset import MAX_SEQ_LEN, _left_pad
+from src.main import get_device
+from src.models.stage3_sasrec import SASRec
 
 ROOT = Path(__file__).resolve().parents[1]
 META_GZ = ROOT / "data" / "raw" / "meta_Video_Games.json.gz"
@@ -160,6 +160,21 @@ CANARIES = {
         16790,  # Forza Horizon 3 - Xbox One                (104)
     ],
 }
+
+# The dense/coherent personas that recommend cleanly — the only ones featured in
+# the deployed Streamlit demo (Tab 2). The DIAGNOSTIC three (horror/fighting/
+# racing) are deliberately excluded: their recs collapse to platform popularity
+# (see canary_experiments.py) and they are kept only for analysis.
+SHOWCASE = [
+    "Western RPG fan",
+    "JRPG fan",
+    "PC strategy fan",
+    "Nintendo Wii U fan",
+    "Pokemon / 3DS handheld fan",
+    "Sony handheld fan (PSP / Vita)",
+    "Vintage gamer (PS2)",
+    "Vintage PC gamer",
+]
 
 
 _HTML_TAG = re.compile(r"<[^>]+>")

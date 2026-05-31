@@ -67,7 +67,7 @@ src/
     transformer_block.py         shared pre-norm block (stages 2 & 3)
   train.py                       unified training loop (identical across stages 1-3)
   evaluate.py                    Hit@10 / NDCG@10, sampled + full
-  main.py                        entry point: python src/main.py --stage <N>
+  main.py                        entry point: python -m src.main --stage <N>
 results/
   ablation_table.md              full results write-up
   stage{1,2,3}_metrics.json      per-stage test metrics
@@ -99,7 +99,7 @@ curl -o data/raw/Video_Games_5.json.gz \
 ### 2. Preprocess
 
 ```bash
-python src/preprocess.py
+python -m src.preprocess
 ```
 
 Writes `interactions.parquet`, `item_id_to_idx.json`, and `user_id_to_idx.json`
@@ -109,9 +109,9 @@ to `data/processed/`. Sanity-check the printed stats against 50,626 users /
 ### 3. Train a stage
 
 ```bash
-python src/main.py --stage 1            # bag-of-items baseline
-python src/main.py --stage 2            # + causal self-attention
-python src/main.py --stage 3 --epochs 500   # full SASRec
+python -m src.main --stage 1            # bag-of-items baseline
+python -m src.main --stage 2            # + causal self-attention
+python -m src.main --stage 3 --epochs 500   # full SASRec
 ```
 
 Each run trains, evaluates on the held-out test set, saves the best checkpoint to

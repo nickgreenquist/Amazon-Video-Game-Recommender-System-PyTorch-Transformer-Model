@@ -73,7 +73,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status: Stages 0–3 complete; Streamlit app not started
 
-`implementation_plan.md` is the authoritative spec — read it before extending the project. Build in the strict order it defines and do not advance to stage N+1 until stage N is trained, verified, and its metrics recorded.
+`implementation_plan.md` is the authoritative spec for the **model build** (Stages 0–4) — read it before extending the project. Build in the strict order it defines and do not advance to stage N+1 until stage N is trained, verified, and its metrics recorded. The **Streamlit demo / deployment stage** has its own spec: `deployment_plan.md` (serves the trained Stage 3 as-is, no new training; leads with order-sensitivity).
 
 Done: preprocessing, dataset, Stages 1–3 (trained to 500 epochs, verified), the ablation write-up, the README, and the canary diagnostic tooling.
 Stage 3 hits the target: sampled NDCG@10 = 0.5188 (within 3.2% of published 0.5360).
@@ -83,11 +83,11 @@ Not started: Stage 4 (BERT4Rec, optional), the Streamlit app, deployment.
 
 ```bash
 pip install -r requirements.txt
-python src/preprocess.py                  # raw → data/processed/ (verify: 50,626 users · 16,882 items · 453,881 interactions)
-python src/main.py --stage <N>            # train+eval Stage N (N∈{1,2,3}); writes results/stage<N>_metrics.json + saved_models/stage<N>_best.pth
-python src/canaries.py [--list|--only X]  # run hand-built persona histories through Stage 3, print top-20 recs
-python src/canary_experiments.py [--only fighting|horror|racing]  # genre-hit sweep over alternate histories
-python src/similar_items.py [--id N|--search Q|--top K]  # cosine nearest-neighbors over the item embedding table (no forward pass)
+python -m src.preprocess                  # raw → data/processed/ (verify: 50,626 users · 16,882 items · 453,881 interactions)
+python -m src.main --stage <N>            # train+eval Stage N (N∈{1,2,3}); writes results/stage<N>_metrics.json + saved_models/stage<N>_best.pth
+python -m src.canaries [--list|--only X]  # run hand-built persona histories through Stage 3, print top-20 recs
+python -m src.canary_experiments [--only fighting|horror|racing]  # genre-hit sweep over alternate histories
+python -m src.similar_items [--id N|--search Q|--top K]  # cosine nearest-neighbors over the item embedding table (no forward pass)
 ```
 
 There is no automated test suite; verification is the per-stage metrics + the canary sanity checks.

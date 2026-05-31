@@ -581,32 +581,12 @@ Target: within 5-10% of published (NDCG@10 ≈ 0.48–0.54).
 
 ## Streamlit Deployment
 
-### `streamlit/app.py`
-
-Use the **best-performing stage** (likely Stage 3 SASRec) for the deployed app. The other stages are for the ablation story, not for serving.
-
-Three-tab demo:
-
-**Tab 1 — Sequential Prediction**
-- User inputs a sequence of games in order
-- Top-10 predicted next games
-- Optional: visualize attention weights showing which past items contributed most
-
-**Tab 2 — Stage Comparison**
-- Show same input through Stage 1, Stage 2, Stage 3 models
-- Demonstrate how predictions change as architecture gets richer
-- Strong visual story for the ablation work
-
-**Tab 3 — About**
-- Architecture diagrams for each stage
-- Ablation results table
-- Reference SASRec paper
-- Link to GitHub README
-
-### Serving artifacts (< 50 MB total)
-- `model.pth` — best stage's checkpoint (~5-10 MB)
-- `item_embeddings.pt` — precomputed item embeddings (~5 MB)
-- `item_metadata.parquet` — game titles, ASIN, image URLs
+**The Streamlit demo / deployment stage is specified in its own document:
+`deployment_plan.md`.** It serves the trained Stage 3 SASRec (no new training),
+leads with the transformer's order-sensitivity, and reuses the existing
+`recommend()` / `most_similar()` serving math. This section is intentionally a
+pointer so this file stays the frozen authoritative spec for the *model build*
+(Stages 0–4) and does not drift from the deployment design.
 
 ---
 
