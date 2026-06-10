@@ -12,7 +12,6 @@ two-tower model structurally cannot do. Everything else is supporting cast.
 import html
 import random
 import re
-import textwrap
 from pathlib import Path
 
 import pandas as pd
@@ -44,7 +43,10 @@ _STYLE = """
 <style>
 .main .block-container { overflow-x:hidden; max-width:100%; }
 div[data-testid="stCaptionContainer"] p { word-break:break-word; white-space:normal; }
-div[data-testid="stTabs"] > div:first-child { overflow-x:auto; white-space:nowrap; flex-wrap:nowrap; }
+/* tab bar stays on one scrollable line on mobile — scope to the baseweb tab-list only;
+   `stTabs > div:first-child` wraps the tab panels too in newer Streamlit, leaking
+   white-space:nowrap into all tab content (unwrappable paragraphs running off-screen) */
+div[data-testid="stTabs"] div[data-baseweb="tab-list"] { overflow-x:auto; white-space:nowrap; flex-wrap:nowrap; }
 div[data-testid="stDataFrame"] { overflow-x:auto; max-width:100%; }
 </style>
 """
@@ -265,33 +267,33 @@ def tab_about():
         st.warning("results/ablation_table.md not found.")
         return
     lines = ablation.read_text().splitlines()
-    st.markdown(lines[0])           # the "# From Bag-of-Items …" title — the page's one H1
-    st.markdown(
-        "A from-scratch PyTorch implementation of **SASRec** "
-        "([Kang & McAuley, 2018](https://arxiv.org/abs/1808.09781)), built as a staged "
-        "ablation on the Amazon Video Games 5-core 2018 dataset so each architectural "
-        "component's contribution can be measured."
-    )
-    st.markdown(
-        "Stage 3 (full SASRec) lands at **sampled NDCG@10 = 0.5188** vs the paper's "
-        "published 0.5360 (within 3.2%)."
-    )
-    st.markdown(
-        "Code & write-up: "
-        "[GitHub](https://github.com/nickgreenquist/Amazon-Video-Game-Recommender-System-PyTorch-Transformer-Model)"
-    )
-    st.markdown("---")
-    _render_writeup("\n".join(lines[1:]))
-
-
-_WRAP_WIDTH = 243  # max chars per rendered prose <p>; keeps long paragraphs short
+    # Single centered readable-width column: full-width on mobile (width caps at
+    # the parent width on narrow screens), ~75 chars/line on desktop. The outer
+    # container centers the fixed-width inner one.
+    with st.container(horizontal_alignment="center"), st.container(width=760, key="about"):
+        st.markdown(lines[0])       # the "# From Bag-of-Items …" title — the page's one H1
+        st.markdown(
+            "A from-scratch PyTorch implementation of **SASRec** "
+            "([Kang & McAuley, 2018](https://arxiv.org/abs/1808.09781)), built as a staged "
+            "ablation on the Amazon Video Games 5-core 2018 dataset so each architectural "
+            "component's contribution can be measured."
+        )
+        st.markdown(
+            "Stage 3 (full SASRec) lands at **sampled NDCG@10 = 0.5188** vs the paper's "
+            "published 0.5360 (within 3.2%)."
+        )
+        st.markdown(
+            "Code & write-up: "
+            "[GitHub](https://github.com/nickgreenquist/Amazon-Video-Game-Recommender-System-PyTorch-Transformer-Model)"
+        )
+        st.markdown("---")
+        _render_writeup("\n".join(lines[1:]))
 
 
 def _render_writeup(text):
-    """Render the ablation markdown. Each prose paragraph is hard-wrapped to
-    _WRAP_WIDTH chars and each chunk rendered as its own st.markdown, so long
-    paragraphs don't render as one run-on <p> that overflows on mobile; the
-    pipe-table renders as a scrollable st.dataframe."""
+    """Render the ablation markdown. Each prose paragraph renders as its own
+    st.markdown (wrapping is normal CSS line-wrapping); the pipe-table renders
+    as a scrollable st.dataframe."""
     prose, table = [], []
 
     def flush_prose():
@@ -303,11 +305,7 @@ def _render_writeup(text):
             para = " ".join(para.split())
             if not para:
                 continue
-            if para.startswith("#"):
-                st.markdown(para)
-                continue
-            for chunk in textwrap.wrap(para, width=_WRAP_WIDTH):
-                st.markdown(chunk)
+            st.markdown(para)
 
     def flush_table():
         if table:
