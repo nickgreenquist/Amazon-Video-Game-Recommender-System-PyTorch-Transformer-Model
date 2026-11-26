@@ -167,3 +167,5 @@ These are constant across all stages — see [`CLAUDE.md`](CLAUDE.md) for the fu
 - Sun et al., *BERT4Rec*, CIKM 2019 — https://arxiv.org/abs/1904.06690
 - Krichene & Rendle, *On Sampled Metrics for Item Recommendation*, KDD 2020 (why both sampled and full metrics are reported)
 - Amazon Review Data (2018), McAuley UCSD — https://nijianmo.github.io/amazon/
+
+<sub>This is a personal project, not affiliated with my employer. All views are my own.</sub>
